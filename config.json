@@ -519,9 +519,9 @@
     },
     "xiaojizy": {
       "api": "https://api.xiaojizy.live/provide/vod",
-      "name": "🎬小鸡资源",
+      "name": "🔞小鸡资源",
       "detail": "",
-      "is_adult": false
+      "is_adult": true
     },
     "kuaichezy": {
       "api": "https://caiji.kuaichezy.org/api.php/provide",
