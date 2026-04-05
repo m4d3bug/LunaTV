@@ -139,6 +139,13 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: '用户组不存在' }, { status: 404 });
         }
         adminConfig.UserConfig.DefaultTag = defaultTag;
+
+        // 将所有没有用户组的非站长用户自动分配到默认用户组
+        adminConfig.UserConfig.Users.forEach(user => {
+          if (user.role !== 'owner' && (!user.tags || user.tags.length === 0)) {
+            user.tags = [defaultTag];
+          }
+        });
       } else {
         // 清除默认用户组
         delete adminConfig.UserConfig.DefaultTag;
