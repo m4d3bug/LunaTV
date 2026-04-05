@@ -493,6 +493,33 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
     }
   };
 
+  // 设置默认用户组
+  const handleSetDefaultTag = async (tagName: string | null) => {
+    return withLoading(`setDefaultTag_${tagName || 'clear'}`, async () => {
+      try {
+        const res = await fetch('/api/admin/user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'setDefaultTag',
+            defaultTag: tagName || '',
+          }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `操作失败: ${res.status}`);
+        }
+
+        await refreshConfig();
+        showSuccess(tagName ? `已将「${tagName}」设为默认用户组` : '已取消默认用户组', showAlert);
+      } catch (err) {
+        showError(err instanceof Error ? err.message : '操作失败', showAlert);
+        throw err;
+      }
+    });
+  };
+
   const handleStartEditUserGroup = (group: { name: string; enabledApis: string[] }) => {
     setEditingUserGroup({ ...group });
     setShowEditUserGroupForm(true);
@@ -904,7 +931,14 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
               {userGroups.map((group) => (
                 <tr key={group.name} className='hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors'>
                   <td className='px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100'>
-                    {group.name}
+                    <span className='flex items-center gap-2'>
+                      {group.name}
+                      {config?.UserConfig?.DefaultTag === group.name && (
+                        <span className='px-1.5 py-0.5 text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded'>
+                          默认
+                        </span>
+                      )}
+                    </span>
                   </td>
                   <td className='px-6 py-4 whitespace-nowrap'>
                     <div className='flex items-center space-x-2'>
@@ -916,6 +950,23 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
                     </div>
                   </td>
                   <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2'>
+                    {config?.UserConfig?.DefaultTag === group.name ? (
+                      <button
+                        onClick={() => handleSetDefaultTag(null)}
+                        disabled={isLoading(`setDefaultTag_clear`)}
+                        className={`${buttonStyles.roundedWarning} ${isLoading(`setDefaultTag_clear`) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        取消默认
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleSetDefaultTag(group.name)}
+                        disabled={isLoading(`setDefaultTag_${group.name}`)}
+                        className={`${buttonStyles.roundedSuccess} ${isLoading(`setDefaultTag_${group.name}`) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        设为默认
+                      </button>
+                    )}
                     <button
                       onClick={() => handleStartEditUserGroup(group)}
                       disabled={isLoading(`userGroup_edit_${group.name}`)}

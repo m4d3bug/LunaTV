@@ -20,6 +20,7 @@ export interface AdminConfig {
   };
   UserConfig: {
     AllowRegister: boolean;
+    DefaultTag?: string; // 新用户注册时自动分配的默认用户组
     Users: {
       username: string;
       role: 'user' | 'admin' | 'owner';

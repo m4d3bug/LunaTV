@@ -98,10 +98,20 @@ export async function POST(req: NextRequest) {
       await db.registerUser(username, password);
 
       // 添加到配置中并保存
-      config.UserConfig.Users.push({
+      const newUser: any = {
         username,
         role: 'user',
-      });
+      };
+
+      // 如果设置了默认用户组，自动分配给新用户
+      if (config.UserConfig.DefaultTag) {
+        const tagExists = config.UserConfig.Tags?.some(t => t.name === config.UserConfig.DefaultTag);
+        if (tagExists) {
+          newUser.tags = [config.UserConfig.DefaultTag];
+        }
+      }
+
+      config.UserConfig.Users.push(newUser);
       await db.saveAdminConfig(config);
 
       // 注册成功，设置认证cookie

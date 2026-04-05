@@ -16,6 +16,7 @@ const ACTIONS = [
   'setAdmin',
   'cancelAdmin',
   'setAllowRegister',
+  'setDefaultTag',
   'changePassword',
   'deleteUser',
   'updateUserApis',
@@ -61,12 +62,13 @@ export async function POST(request: NextRequest) {
     }
 
     // 除了特定操作外，其他操作都需要targetUsername
-    if (action !== 'setAllowRegister' && !targetUsername && !['userGroup', 'batchUpdateUserGroups'].includes(action)) {
+    if (action !== 'setAllowRegister' && action !== 'setDefaultTag' && !targetUsername && !['userGroup', 'batchUpdateUserGroups'].includes(action)) {
       return NextResponse.json({ error: '缺少目标用户名' }, { status: 400 });
     }
 
     if (
       action !== 'setAllowRegister' &&
+      action !== 'setDefaultTag' &&
       action !== 'changePassword' &&
       action !== 'deleteUser' &&
       action !== 'updateUserApis' &&
@@ -102,7 +104,7 @@ export async function POST(request: NextRequest) {
     let targetEntry: any = null;
     let isTargetAdmin = false;
 
-    if (!['userGroup', 'batchUpdateUserGroups'].includes(action) && targetUsername) {
+    if (!['userGroup', 'batchUpdateUserGroups', 'setDefaultTag'].includes(action) && targetUsername) {
       targetEntry = adminConfig.UserConfig.Users.find(
         (u) => u.username === targetUsername
       );
@@ -128,6 +130,19 @@ export async function POST(request: NextRequest) {
       }
       adminConfig.UserConfig.AllowRegister = allowRegister;
       // 保存后直接返回成功（走后面的统一保存逻辑）
+    } else if (action === 'setDefaultTag') {
+      const { defaultTag } = body as { defaultTag?: string };
+      if (defaultTag) {
+        // 验证用户组存在
+        const tagExists = adminConfig.UserConfig.Tags?.some(t => t.name === defaultTag);
+        if (!tagExists) {
+          return NextResponse.json({ error: '用户组不存在' }, { status: 404 });
+        }
+        adminConfig.UserConfig.DefaultTag = defaultTag;
+      } else {
+        // 清除默认用户组
+        delete adminConfig.UserConfig.DefaultTag;
+      }
     } else {
       switch (action) {
         case 'add': {
@@ -398,6 +413,11 @@ export async function POST(request: NextRequest) {
 
               // 删除用户组
               adminConfig.UserConfig.Tags.splice(groupIndex, 1);
+
+              // 如果删除的是默认用户组，清除 DefaultTag
+              if (adminConfig.UserConfig.DefaultTag === groupName) {
+                delete adminConfig.UserConfig.DefaultTag;
+              }
 
               // 记录删除操作的影响
               console.log(`删除用户组 "${groupName}"，影响用户: ${affectedUsers.length > 0 ? affectedUsers.join(', ') : '无'}`);
