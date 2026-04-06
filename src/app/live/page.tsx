@@ -4,7 +4,6 @@
 
 import Artplayer from 'artplayer';
 import Hls from 'hls.js';
-import mpegts from 'mpegts.js';
 import { Heart, Radio, Tv } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
@@ -889,8 +888,9 @@ function LivePageClient() {
       // 重置不支持的类型
       setUnsupportedType(null);
 
-      // FLV loader using mpegts.js
-      function flvLoader(video: HTMLVideoElement, url: string) {
+      // FLV loader using mpegts.js (dynamic import to avoid SSR issues)
+      async function flvLoader(video: HTMLVideoElement, url: string) {
+        const mpegts = (await import('mpegts.js')).default;
         if (mpegts.isSupported()) {
           const flvPlayer = mpegts.createPlayer({
             type: 'flv',
