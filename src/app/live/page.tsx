@@ -896,9 +896,10 @@ function LivePageClient() {
 
       // FLV loader using mpegts.js (dynamic import to avoid SSR issues)
       async function flvLoader(video: HTMLVideoElement, url: string) {
-        const mpegts = (await import('mpegts.js')).default;
-        if (mpegts.isSupported()) {
-          const flvPlayer = mpegts.createPlayer({
+        const mpegtsModule = await import('mpegts.js');
+        const mpegts = mpegtsModule.default || mpegtsModule;
+        if ((mpegts as any).isSupported()) {
+          const flvPlayer = (mpegts as any).createPlayer({
             type: 'flv',
             isLive: true,
             url: url,
