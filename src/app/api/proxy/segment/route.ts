@@ -56,37 +56,47 @@ export async function GET(request: Request) {
         }
 
         reader = response.body.getReader();
-        const isCancelled = false;
+        let isCancelled = false;
 
         function pump() {
           if (isCancelled || !reader) {
+            cleanup();
             return;
           }
 
           reader.read().then(({ done, value }) => {
             if (isCancelled) {
-              return;
-            }
-
-            if (done) {
-              controller.close();
               cleanup();
               return;
             }
 
-            controller.enqueue(value);
+            if (done) {
+              try { controller.close(); } catch (e) { /* already closed */ }
+              cleanup();
+              return;
+            }
+
+            try {
+              controller.enqueue(value);
+            } catch (e) {
+              // controller may be closed if client disconnected
+              cleanup();
+              return;
+            }
             pump();
-          }).catch((error) => {
+          }).catch(() => {
             if (!isCancelled) {
-              controller.error(error);
+              try { controller.close(); } catch (e) { /* already closed */ }
               cleanup();
             }
           });
         }
 
         function cleanup() {
+          isCancelled = true;
           if (reader) {
             try {
+              reader.cancel().catch(() => {});
               reader.releaseLock();
             } catch (e) {
               // reader 可能已经被释放，忽略错误
@@ -98,9 +108,10 @@ export async function GET(request: Request) {
         pump();
       },
       cancel() {
-        // 当流被取消时，确保释放所有资源
+        // 当流被取消时（客户端断开），确保释放所有资源
         if (reader) {
           try {
+            reader.cancel().catch(() => {});
             reader.releaseLock();
           } catch (e) {
             // reader 可能已经被释放，忽略错误
