@@ -25,43 +25,14 @@ export interface LiveChannels {
   };
 }
 
-// 缓存 TTL：4小时自动过期，避免内存无限增长
-const CACHE_TTL_MS = 4 * 60 * 60 * 1000;
-
-interface CachedEntry {
-  data: LiveChannels;
-  timestamp: number;
-}
-
-const cachedLiveChannels: { [key: string]: CachedEntry } = {};
+const cachedLiveChannels: { [key: string]: LiveChannels } = {};
 
 export function deleteCachedLiveChannels(key: string) {
   delete cachedLiveChannels[key];
 }
 
-function isCacheValid(key: string): boolean {
-  const entry = cachedLiveChannels[key];
-  if (!entry) return false;
-  return Date.now() - entry.timestamp < CACHE_TTL_MS;
-}
-
-// 清理所有过期缓存
-function cleanExpiredCache() {
-  const now = Date.now();
-  for (const key of Object.keys(cachedLiveChannels)) {
-    if (now - cachedLiveChannels[key].timestamp >= CACHE_TTL_MS) {
-      delete cachedLiveChannels[key];
-    }
-  }
-}
-
 export async function getCachedLiveChannels(key: string): Promise<LiveChannels | null> {
-  // 顺带清理过期缓存
-  cleanExpiredCache();
-
-  if (!isCacheValid(key)) {
-    // 缓存不存在或已过期，重新加载
-    delete cachedLiveChannels[key];
+  if (!cachedLiveChannels[key]) {
     const config = await getConfig();
     const liveInfo = config.LiveConfig?.find(live => live.key === key);
     if (!liveInfo) {
@@ -74,7 +45,7 @@ export async function getCachedLiveChannels(key: string): Promise<LiveChannels |
     liveInfo.channelNumber = channelNum;
     await db.saveAdminConfig(config);
   }
-  return cachedLiveChannels[key]?.data || null;
+  return cachedLiveChannels[key] || null;
 }
 
 export async function refreshLiveChannels(liveInfo: {
@@ -87,7 +58,9 @@ export async function refreshLiveChannels(liveInfo: {
   channelNumber?: number;
   disabled?: boolean;
 }): Promise<number> {
-  delete cachedLiveChannels[liveInfo.key];
+  if (cachedLiveChannels[liveInfo.key]) {
+    delete cachedLiveChannels[liveInfo.key];
+  }
   const ua = liveInfo.ua || defaultUA;
   const response = await fetch(liveInfo.url, {
     headers: {
@@ -99,13 +72,10 @@ export async function refreshLiveChannels(liveInfo: {
   const epgUrl = liveInfo.epg || result.tvgUrl;
   const epgs = await parseEpg(epgUrl, liveInfo.ua || defaultUA, result.channels.map(channel => channel.tvgId).filter(tvgId => tvgId));
   cachedLiveChannels[liveInfo.key] = {
-    data: {
-      channelNumber: result.channels.length,
-      channels: result.channels,
-      epgUrl: epgUrl,
-      epgs: epgs,
-    },
-    timestamp: Date.now(),
+    channelNumber: result.channels.length,
+    channels: result.channels,
+    epgUrl: epgUrl,
+    epgs: epgs,
   };
   return result.channels.length;
 }
@@ -123,13 +93,6 @@ async function parseEpg(epgUrl: string, ua: string, tvgIds: string[]): Promise<{
 
   const tvgs = new Set(tvgIds);
   const result: { [key: string]: { start: string; end: string; title: string }[] } = {};
-
-  // 只保留今天的节目数据，减少内存占用
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
-  const tomorrowDate = new Date(today);
-  tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-  const tomorrowStr = `${tomorrowDate.getFullYear()}${String(tomorrowDate.getMonth() + 1).padStart(2, '0')}${String(tomorrowDate.getDate()).padStart(2, '0')}`;
 
   try {
     const response = await fetch(epgUrl, {
@@ -183,15 +146,9 @@ async function parseEpg(epgUrl: string, ua: string, tvgIds: string[]): Promise<{
           const end = endMatch ? endMatch[1] : '';
 
           if (currentTvgId && start && end) {
-            // 只保留今天和明天的节目，跳过过期数据
-            const startDate = start.substring(0, 8);
-            if (startDate < todayStr || startDate > tomorrowStr) {
-              shouldSkipCurrentProgram = true;
-            } else {
-              currentProgram = { start, end, title: '' };
-              // 优化：如果当前频道不在我们关注的列表中，标记为跳过
-              shouldSkipCurrentProgram = !tvgs.has(currentTvgId);
-            }
+            currentProgram = { start, end, title: '' };
+            // 优化：如果当前频道不在我们关注的列表中，标记为跳过
+            shouldSkipCurrentProgram = !tvgs.has(currentTvgId);
           }
         }
         // 解析 <title> 标签 - 只有在需要解析当前节目时才处理
