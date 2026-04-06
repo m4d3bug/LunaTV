@@ -4059,7 +4059,7 @@ const SiteConfigComponent = ({ config, refreshConfig }: { config: AdminConfig | 
           </button>
         </div>
         <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
-          网页直播性能较差，会导致服务器内存泄露。
+          直播流通过服务器代理转发，多用户同时观看会增加服务器负载。
         </p>
       </div>
 

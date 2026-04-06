@@ -26,14 +26,35 @@ export interface LiveChannels {
   };
 }
 
-const cachedLiveChannels: { [key: string]: LiveChannels } = {};
+// 缓存 TTL：4小时自动过期，避免内存无限增长
+const CACHE_TTL_MS = 4 * 60 * 60 * 1000;
+
+interface CachedEntry {
+  data: LiveChannels;
+  timestamp: number;
+}
+
+const cachedLiveChannels: { [key: string]: CachedEntry } = {};
 
 export function deleteCachedLiveChannels(key: string) {
   delete cachedLiveChannels[key];
 }
 
+function cleanExpiredCache() {
+  const now = Date.now();
+  for (const key of Object.keys(cachedLiveChannels)) {
+    if (now - cachedLiveChannels[key].timestamp >= CACHE_TTL_MS) {
+      delete cachedLiveChannels[key];
+    }
+  }
+}
+
 export async function getCachedLiveChannels(key: string): Promise<LiveChannels | null> {
-  if (!cachedLiveChannels[key]) {
+  cleanExpiredCache();
+
+  const entry = cachedLiveChannels[key];
+  if (!entry || Date.now() - entry.timestamp >= CACHE_TTL_MS) {
+    delete cachedLiveChannels[key];
     const config = await getConfig();
     const liveInfo = config.LiveConfig?.find(live => live.key === key);
     if (!liveInfo) {
@@ -46,7 +67,7 @@ export async function getCachedLiveChannels(key: string): Promise<LiveChannels |
     liveInfo.channelNumber = channelNum;
     await db.saveAdminConfig(config);
   }
-  return cachedLiveChannels[key] || null;
+  return cachedLiveChannels[key]?.data || null;
 }
 
 export async function refreshLiveChannels(liveInfo: {
@@ -73,10 +94,13 @@ export async function refreshLiveChannels(liveInfo: {
   const epgUrl = liveInfo.epg || result.tvgUrl;
   const epgs = await parseEpg(epgUrl, liveInfo.ua || defaultUA, result.channels.map(channel => channel.tvgId).filter(tvgId => tvgId));
   cachedLiveChannels[liveInfo.key] = {
-    channelNumber: result.channels.length,
-    channels: result.channels,
-    epgUrl: epgUrl,
-    epgs: epgs,
+    data: {
+      channelNumber: result.channels.length,
+      channels: result.channels,
+      epgUrl: epgUrl,
+      epgs: epgs,
+    },
+    timestamp: Date.now(),
   };
   return result.channels.length;
 }
