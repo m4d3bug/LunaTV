@@ -4,6 +4,7 @@
 
 import Artplayer from 'artplayer';
 import Hls from 'hls.js';
+import mpegts from 'mpegts.js';
 import { Heart, Radio, Tv } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
@@ -878,8 +879,8 @@ function LivePageClient() {
         type = precheckResult.type;
       }
 
-      // 如果不是 m3u8 类型，设置不支持的类型并返回
-      if (type !== 'm3u8') {
+      // 如果不是 m3u8 或 flv 类型，设置不支持的类型并返回
+      if (type !== 'm3u8' && type !== 'flv') {
         setUnsupportedType(type);
         setIsVideoLoading(false);
         return;
@@ -888,8 +889,37 @@ function LivePageClient() {
       // 重置不支持的类型
       setUnsupportedType(null);
 
-      const customType = { m3u8: m3u8Loader };
-      const targetUrl = `/api/proxy/m3u8?url=${encodeURIComponent(videoUrl)}&moontv-source=${currentSourceRef.current?.key || ''}`;
+      // FLV loader using mpegts.js
+      function flvLoader(video: HTMLVideoElement, url: string) {
+        if (mpegts.isSupported()) {
+          const flvPlayer = mpegts.createPlayer({
+            type: 'flv',
+            isLive: true,
+            url: url,
+          }, {
+            enableWorker: false,
+            enableStashBuffer: false,
+            stashInitialSize: 128,
+            liveBufferLatencyChasing: true,
+            liveBufferLatencyMaxLatency: 1.5,
+            liveBufferLatencyMinRemain: 0.3,
+          });
+          flvPlayer.attachMediaElement(video);
+          flvPlayer.load();
+          flvPlayer.play();
+          // Store reference for cleanup
+          (video as any).flv = flvPlayer;
+        }
+      }
+
+      const customType: Record<string, (video: HTMLVideoElement, url: string) => void> = {
+        m3u8: m3u8Loader,
+        flv: flvLoader,
+      };
+
+      const targetUrl = type === 'flv'
+        ? `/api/proxy/m3u8?url=${encodeURIComponent(videoUrl)}&moontv-source=${currentSourceRef.current?.key || ''}&allowCORS=true`
+        : `/api/proxy/m3u8?url=${encodeURIComponent(videoUrl)}&moontv-source=${currentSourceRef.current?.key || ''}`;
       try {
         // 创建新的播放器实例
         Artplayer.USE_RAF = false;
@@ -1267,7 +1297,7 @@ function LivePageClient() {
                             当前频道直播流类型：<span className='text-white font-bold'>{unsupportedType.toUpperCase()}</span>
                           </p>
                           <p className='text-sm text-orange-200 mt-2'>
-                            目前仅支持 M3U8 格式的直播流
+                            目前支持 M3U8 和 FLV 格式的直播流
                           </p>
                         </div>
                         <p className='text-sm text-gray-300'>
