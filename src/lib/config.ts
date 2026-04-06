@@ -168,11 +168,11 @@ export function refineConfig(adminConfig: AdminConfig): AdminConfig {
     }
   });
 
-  // 检查现有 LiveConfig 是否在 fileConfig.lives 中，如果不在则标记为 custom
+  // 移除不在配置文件中的直播源（防止已删除的源通过数据库缓存复活）
   const livesFromFileKeys = new Set(livesFromFile.map(([key]) => key));
-  currentLives.forEach((live) => {
-    if (!livesFromFileKeys.has(live.key)) {
-      live.from = 'custom';
+  currentLives.forEach((live, key) => {
+    if (!livesFromFileKeys.has(key)) {
+      currentLives.delete(key);
     }
   });
 
