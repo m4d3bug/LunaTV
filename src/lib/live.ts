@@ -14,6 +14,7 @@ export interface LiveChannels {
     logo: string;
     group: string;
     url: string;
+    urls: string[];
   }[];
   epgUrl: string;
   epgs: {
@@ -196,21 +197,15 @@ function parseM3U(sourceKey: string, m3uContent: string): {
     logo: string;
     group: string;
     url: string;
+    urls: string[];
   }[];
 } {
-  const channels: {
-    id: string;
-    tvgId: string;
-    name: string;
-    logo: string;
-    group: string;
-    url: string;
-  }[] = [];
-
   const lines = m3uContent.split('\n').map(line => line.trim()).filter(line => line.length > 0);
 
   let tvgUrl = '';
-  let channelIndex = 0;
+  // 先收集所有频道条目，再合并同名频道
+  const rawChannels: { tvgId: string; name: string; logo: string; group: string; url: string }[] = [];
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
@@ -250,25 +245,48 @@ function parseM3U(sourceKey: string, m3uContent: string): {
       // 检查下一行是否是URL
       if (i + 1 < lines.length && !lines[i + 1].startsWith('#')) {
         const url = lines[i + 1];
-
-        // 只有当有名称和URL时才添加到结果中
         if (name && url) {
-          channels.push({
-            id: `${sourceKey}-${channelIndex}`,
-            tvgId,
-            name,
-            logo,
-            group,
-            url
-          });
-          channelIndex++;
+          rawChannels.push({ tvgId, name, logo, group, url });
         }
-
-        // 跳过下一行，因为已经处理了
         i++;
       }
     }
   }
+
+  // 合并同组同名频道的多个URL
+  const mergedMap = new Map<string, { tvgId: string; name: string; logo: string; group: string; urls: string[] }>();
+  for (const ch of rawChannels) {
+    const key = `${ch.group}||${ch.name}`;
+    const existing = mergedMap.get(key);
+    if (existing) {
+      // 追加URL（去重）
+      if (!existing.urls.includes(ch.url)) {
+        existing.urls.push(ch.url);
+      }
+      // 补充缺失的 logo/tvgId
+      if (!existing.logo && ch.logo) existing.logo = ch.logo;
+      if (!existing.tvgId && ch.tvgId) existing.tvgId = ch.tvgId;
+    } else {
+      mergedMap.set(key, {
+        tvgId: ch.tvgId,
+        name: ch.name,
+        logo: ch.logo,
+        group: ch.group,
+        urls: [ch.url],
+      });
+    }
+  }
+
+  // 转为数组
+  const channels = Array.from(mergedMap.values()).map((ch, index) => ({
+    id: `${sourceKey}-${index}`,
+    tvgId: ch.tvgId,
+    name: ch.name,
+    logo: ch.logo,
+    group: ch.group,
+    url: ch.urls[0],
+    urls: ch.urls,
+  }));
 
   return { tvgUrl, channels };
 }

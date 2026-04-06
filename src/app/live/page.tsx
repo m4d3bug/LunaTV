@@ -35,6 +35,7 @@ interface LiveChannel {
   logo: string;
   group: string;
   url: string;
+  urls: string[];
 }
 
 // 直播源接口
@@ -85,6 +86,9 @@ function LivePageClient() {
   const [videoUrl, setVideoUrl] = useState('');
   const [isVideoLoading, setIsVideoLoading] = useState(false);
   const [unsupportedType, setUnsupportedType] = useState<string | null>(null);
+
+  // 多源轮询：当前源索引
+  const currentUrlIndexRef = useRef(0);
 
   // 切换直播源状态
   const [isSwitchingSource, setIsSwitchingSource] = useState(false);
@@ -344,22 +348,23 @@ function LivePageClient() {
 
       // 默认选中第一个频道
       if (channels.length > 0) {
+        currentUrlIndexRef.current = 0;
         if (needLoadChannel) {
           const foundChannel = channels.find((c: LiveChannel) => c.id === needLoadChannel);
           if (foundChannel) {
             setCurrentChannel(foundChannel);
-            setVideoUrl(foundChannel.url);
+            setVideoUrl(foundChannel.urls?.[0] || foundChannel.url);
             // 延迟滚动到选中的频道
             setTimeout(() => {
               scrollToChannel(foundChannel);
             }, 200);
           } else {
             setCurrentChannel(channels[0]);
-            setVideoUrl(channels[0].url);
+            setVideoUrl(channels[0].urls?.[0] || channels[0].url);
           }
         } else {
           setCurrentChannel(channels[0]);
-          setVideoUrl(channels[0].url);
+          setVideoUrl(channels[0].urls?.[0] || channels[0].url);
         }
       }
 
@@ -462,7 +467,8 @@ function LivePageClient() {
     setUnsupportedType(null);
 
     setCurrentChannel(channel);
-    setVideoUrl(channel.url);
+    currentUrlIndexRef.current = 0;
+    setVideoUrl(channel.urls?.[0] || channel.url);
 
     // 自动滚动到选中的频道位置
     setTimeout(() => {
@@ -993,6 +999,16 @@ function LivePageClient() {
 
         artPlayerRef.current.on('error', (err: any) => {
           console.error('播放器错误:', err);
+          // 多源自动轮询：播放失败时切换到下一个源
+          const ch = currentChannelRef.current;
+          if (ch && ch.urls && ch.urls.length > 1) {
+            const nextIndex = currentUrlIndexRef.current + 1;
+            if (nextIndex < ch.urls.length) {
+              console.log(`源 ${currentUrlIndexRef.current + 1}/${ch.urls.length} 失败，切换到源 ${nextIndex + 1}`);
+              currentUrlIndexRef.current = nextIndex;
+              setVideoUrl(ch.urls[nextIndex]);
+            }
+          }
         });
 
         if (artPlayerRef.current?.video) {
