@@ -43,27 +43,41 @@ export async function GET(request: Request) {
     }
 
     const contentType = response.headers.get('Content-Type') || '';
-    // rewrite m3u8
-    if (contentType.toLowerCase().includes('mpegurl') || contentType.toLowerCase().includes('octet-stream')) {
-      // 获取最终的响应URL（处理重定向后的URL）
+    const contentTypeLower = contentType.toLowerCase();
+    const isM3U8ByContentType = contentTypeLower.includes('mpegurl') || contentTypeLower.includes('octet-stream');
+
+    // 对于 text/plain 等非标准 Content-Type，先读取内容判断是否为 m3u8
+    if (isM3U8ByContentType || contentTypeLower.includes('text/plain') || contentTypeLower.includes('text/html')) {
       const finalUrl = response.url;
-      const m3u8Content = await response.text();
-      responseUsed = true; // 标记 response 已被使用
+      const bodyContent = await response.text();
+      responseUsed = true;
 
-      // 使用最终的响应URL作为baseUrl，而不是原始的请求URL
-      const baseUrl = getBaseUrl(finalUrl);
+      // 通过内容开头判断是否为 m3u8
+      const isM3U8ByContent = bodyContent.trimStart().startsWith('#EXTM3U') || bodyContent.trimStart().startsWith('#EXT-X-');
 
-      // 重写 M3U8 内容
-      const modifiedContent = rewriteM3U8Content(m3u8Content, baseUrl, request, allowCORS);
+      if (isM3U8ByContentType || isM3U8ByContent) {
+        // 使用最终的响应URL作为baseUrl，而不是原始的请求URL
+        const baseUrl = getBaseUrl(finalUrl);
 
+        // 重写 M3U8 内容
+        const modifiedContent = rewriteM3U8Content(bodyContent, baseUrl, request, allowCORS);
+
+        const headers = new Headers();
+        headers.set('Content-Type', 'application/vnd.apple.mpegurl');
+        headers.set('Access-Control-Allow-Origin', '*');
+        headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        headers.set('Access-Control-Allow-Headers', 'Content-Type, Range, Origin, Accept');
+        headers.set('Cache-Control', 'no-cache');
+        headers.set('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
+        return new Response(modifiedContent, { headers });
+      }
+
+      // 不是 m3u8，原样返回文本内容
       const headers = new Headers();
       headers.set('Content-Type', contentType);
       headers.set('Access-Control-Allow-Origin', '*');
-      headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-      headers.set('Access-Control-Allow-Headers', 'Content-Type, Range, Origin, Accept');
       headers.set('Cache-Control', 'no-cache');
-      headers.set('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
-      return new Response(modifiedContent, { headers });
+      return new Response(bodyContent, { headers });
     }
     // just proxy
     const headers = new Headers();
