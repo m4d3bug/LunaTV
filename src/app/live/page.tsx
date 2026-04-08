@@ -924,9 +924,9 @@ function LivePageClient() {
         flv: flvLoader,
       };
 
-      // FLV 走 segment proxy（纯二进制转发+CORS头）
+      // FLV 走 CF Worker 代理（Vercel serverless 对流式响应有限制）
       const targetUrl = type === 'flv'
-        ? `/api/proxy/segment?url=${encodeURIComponent(videoUrl)}&moontv-source=${currentSourceRef.current?.key || ''}`
+        ? `https://flv-proxy.mdbg.workers.dev/?url=${encodeURIComponent(videoUrl)}`
         : `/api/proxy/m3u8?url=${encodeURIComponent(videoUrl)}&moontv-source=${currentSourceRef.current?.key || ''}`;
       try {
         // 创建新的播放器实例
