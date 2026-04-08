@@ -925,7 +925,7 @@ function LivePageClient() {
       };
 
       const targetUrl = type === 'flv'
-        ? `/api/proxy/m3u8?url=${encodeURIComponent(videoUrl)}&moontv-source=${currentSourceRef.current?.key || ''}&allowCORS=true`
+        ? `/api/proxy/segment?url=${encodeURIComponent(videoUrl)}&moontv-source=${currentSourceRef.current?.key || ''}`
         : `/api/proxy/m3u8?url=${encodeURIComponent(videoUrl)}&moontv-source=${currentSourceRef.current?.key || ''}`;
       try {
         // 创建新的播放器实例
