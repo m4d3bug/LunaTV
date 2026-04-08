@@ -924,8 +924,9 @@ function LivePageClient() {
         flv: flvLoader,
       };
 
+      // FLV 直接用原始URL（mpegts.js自行处理跨域），不经过代理
       const targetUrl = type === 'flv'
-        ? `/api/proxy/segment?url=${encodeURIComponent(videoUrl)}&moontv-source=${currentSourceRef.current?.key || ''}`
+        ? videoUrl
         : `/api/proxy/m3u8?url=${encodeURIComponent(videoUrl)}&moontv-source=${currentSourceRef.current?.key || ''}`;
       try {
         // 创建新的播放器实例
