@@ -95,7 +95,7 @@ export async function GET(request: Request) {
           isCancelled = true;
           if (reader) {
             try {
-              reader.cancel().catch(() => {});
+              reader.cancel().catch(() => { /* ignore */ });
               reader.releaseLock();
             } catch (e) {
               // reader 可能已经被释放，忽略错误
@@ -110,7 +110,7 @@ export async function GET(request: Request) {
         // 当流被取消时（客户端断开），确保释放所有资源
         if (reader) {
           try {
-            reader.cancel().catch(() => {});
+            reader.cancel().catch(() => { /* ignore */ });
             reader.releaseLock();
           } catch (e) {
             // reader 可能已经被释放，忽略错误
