@@ -36,7 +36,7 @@ export async function GET(request: Request) {
     }
 
     const headers = new Headers();
-    headers.set('Content-Type', 'video/mp2t');
+    headers.set('Content-Type', response.headers.get('Content-Type') || 'video/mp2t');
     headers.set('Access-Control-Allow-Origin', '*');
     headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     headers.set('Access-Control-Allow-Headers', 'Content-Type, Range, Origin, Accept');
