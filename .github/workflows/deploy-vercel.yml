@@ -1,0 +1,49 @@
+name: Deploy to Vercel (prebuilt)
+
+# Vercel 服务端构建的依赖安装环节目前对本账号不可用（装包即静默失败），
+# 因此改为在 GitHub Actions 完成安装与构建，再把产物以 prebuilt 方式直传部署，
+# 完全绕过 Vercel 的 install 阶段。
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: luna-tv
+            projectId: prj_WO6T8RAFCAGsk6B4ZKmqocS5whYe
+          - project: moon-tv
+            projectId: prj_DvtB5r2ecQbem5u1xpDvTVkKAARL
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 安装 Vercel CLI
+        run: npm install -g vercel@59.3.0
+
+      - name: 拉取项目设置（含 Install Command 覆盖）
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: team_fp2sgluazpSCiyCC5MzXpOa3
+          VERCEL_PROJECT_ID: ${{ matrix.projectId }}
+
+      - name: 构建
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: team_fp2sgluazpSCiyCC5MzXpOa3
+          VERCEL_PROJECT_ID: ${{ matrix.projectId }}
+
+      - name: 预构建产物直传生产环境
+        run: vercel deploy --prebuilt --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: team_fp2sgluazpSCiyCC5MzXpOa3
+          VERCEL_PROJECT_ID: ${{ matrix.projectId }}
