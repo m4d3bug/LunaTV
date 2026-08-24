@@ -91,6 +91,5 @@
     "**/*.{json,css,scss,md,webmanifest}": [
       "prettier -w"
     ]
-  },
-  "packageManager": "pnpm@10.34.5"
+  }
 }
