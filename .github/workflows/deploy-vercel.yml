@@ -30,6 +30,9 @@ jobs:
       - name: 安装 Vercel CLI
         run: npm install -g vercel@59.3.0
 
+      - name: 启用 pnpm（项目构建脚本 gen:manifest 依赖 pnpm）
+        run: corepack enable && corepack prepare pnpm@10.14.0 --activate
+
       - name: 拉取项目设置（含 Install Command 覆盖）
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
         env:
