@@ -9,6 +9,7 @@ export interface ApiSite {
   api: string;
   name: string;
   detail?: string;
+  is_adult?: boolean;
 }
 
 export interface LiveCfg {
@@ -75,10 +76,11 @@ export function refineConfig(adminConfig: AdminConfig): AdminConfig {
   apiSitesFromFile.forEach(([key, site]) => {
     const existingSource = currentApiSites.get(key);
     if (existingSource) {
-      // 如果已存在，只覆盖 name、api、detail 和 from
+      // 如果已存在，只覆盖 name、api、detail、is_adult 和 from
       existingSource.name = site.name;
       existingSource.api = site.api;
       existingSource.detail = site.detail;
+      existingSource.is_adult = site.is_adult;
       existingSource.from = 'config';
     } else {
       // 如果不存在，创建新条目
@@ -87,6 +89,7 @@ export function refineConfig(adminConfig: AdminConfig): AdminConfig {
         name: site.name,
         api: site.api,
         detail: site.detail,
+        is_adult: site.is_adult,
         from: 'config',
         disabled: false,
       });
@@ -420,7 +423,11 @@ export async function getCacheTime(): Promise<number> {
 
 export async function getAvailableApiSites(user?: string): Promise<ApiSite[]> {
   const config = await getConfig();
-  const allApiSites = config.SourceConfig.filter((s) => !s.disabled);
+  // 黄色过滤开启时（默认），is_adult 黄色源对所有人隐藏，含站长；
+  // 只有管理员显式打开"禁用黄色过滤器"才会放开
+  const allApiSites = config.SourceConfig.filter(
+    (s) => !s.disabled && (config.SiteConfig.DisableYellowFilter || !s.is_adult)
+  );
 
   if (!user) {
     return allApiSites;

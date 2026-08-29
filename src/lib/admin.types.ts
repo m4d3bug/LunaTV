@@ -38,6 +38,7 @@ export interface AdminConfig {
     name: string;
     api: string;
     detail?: string;
+    is_adult?: boolean; // 黄色源标记，黄色过滤开启时（默认）对所有人隐藏，含站长
     from: 'config' | 'custom';
     disabled?: boolean;
   }[];
