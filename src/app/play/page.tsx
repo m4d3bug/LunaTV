@@ -216,8 +216,8 @@ function PlayPageClient() {
   ): Promise<SearchResult> => {
     if (sources.length === 1) return sources[0];
 
-    // 将播放源均分为两批，并发测速各批，避免一次性过多请求
-    const batchSize = Math.ceil(sources.length / 2);
+    // 固定小批次并发测速（3路），慢速网络下过多并发会互相挤占带宽导致全部超时
+    const batchSize = 3;
     const allResults: Array<{
       source: SearchResult;
       testResult: { quality: string; loadSpeed: string; pingTime: number };
