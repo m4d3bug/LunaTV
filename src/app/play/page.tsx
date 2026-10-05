@@ -690,7 +690,9 @@ function PlayPageClient() {
             result.title.replaceAll(' ', '').toLowerCase() ===
             videoTitleRef.current.replaceAll(' ', '').toLowerCase() &&
             (videoYearRef.current
-              ? result.year.toLowerCase() === videoYearRef.current.toLowerCase()
+              ? !result.year ||
+                result.year.toLowerCase().includes(videoYearRef.current.toLowerCase()) ||
+                videoYearRef.current.toLowerCase().includes(result.year.toLowerCase())
               : true) &&
             (searchType
               ? (searchType === 'tv' && result.episodes.length > 1) ||
@@ -864,31 +866,34 @@ function PlayPageClient() {
       const currentPlayTime = artPlayerRef.current?.currentTime || 0;
       console.log('换源前当前播放时间:', currentPlayTime);
 
-      // 清除前一个历史记录
-      if (currentSourceRef.current && currentIdRef.current) {
-        try {
-          await deletePlayRecord(
-            currentSourceRef.current,
-            currentIdRef.current
-          );
-          console.log('已清除前一个播放记录');
-        } catch (err) {
-          console.error('清除播放记录失败:', err);
-        }
-      }
-
-      // 清除并设置下一个跳过片头片尾配置
-      if (currentSourceRef.current && currentIdRef.current) {
-        try {
-          await deleteSkipConfig(
-            currentSourceRef.current,
-            currentIdRef.current
-          );
-          await saveSkipConfig(newSource, newId, skipConfigRef.current);
-        } catch (err) {
-          console.error('清除跳过片头片尾配置失败:', err);
-        }
-      }
+      // 后台清理与迁移：三个操作键各不相同、与换流主路无数据依赖，且原实现
+      // 的失败处理本就不具备事务性——改为并行后台执行，不阻塞换流；
+      // 失败静默重试一次，不再向用户弹全局错误（换源失败率随高峰链路抖动放大，
+      // 弹错只造成恐慌，重试+console 足够）。
+      const migrateSourceData = async () => {
+        const retry = (fn: () => Promise<unknown>, label: string) =>
+          fn().catch((err) => {
+            console.warn(`${label}失败，800ms 后重试:`, err?.message || err);
+            return new Promise((resolve) => setTimeout(resolve, 800))
+              .then(fn)
+              .catch((err2) =>
+                console.warn(`${label}重试仍失败(忽略):`, err2?.message || err2)
+              );
+          });
+        const oldSource = currentSourceRef.current;
+        const oldId = currentIdRef.current;
+        await Promise.allSettled([
+          oldSource && oldId
+            ? retry(() => deletePlayRecord(oldSource, oldId), '清除旧播放记录')
+            : Promise.resolve(),
+          (async () => {
+            if (!oldSource || !oldId) return;
+            await retry(() => deleteSkipConfig(oldSource, oldId), '清除旧跳过配置');
+            await retry(() => saveSkipConfig(newSource, newId, skipConfigRef.current), '保存新跳过配置');
+          })(),
+        ]);
+      };
+      void migrateSourceData();
 
       const newDetail = availableSources.find(
         (source) => source.source === newSource && source.id === newId
