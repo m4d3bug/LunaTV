@@ -700,7 +700,7 @@ function PlayPageClient() {
                 (searchType === 'movie' && result.episodes.length === 1)
                 : true)
           );
-        let results = filterResults(data.results);
+        const results = filterResults(data.results);
 
         // 带空格的搜索词在多数采集站命中率骤降(子串匹配对空格敏感)，
         // 过滤后源过少且词含空格时，用去空格版本重搜一次补全换源列表
