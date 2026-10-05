@@ -685,20 +685,49 @@ function PlayPageClient() {
         const data = await response.json();
 
         // 处理搜索结果，根据规则过滤
-        const results = data.results.filter(
-          (result: SearchResult) =>
-            result.title.replaceAll(' ', '').toLowerCase() ===
-            videoTitleRef.current.replaceAll(' ', '').toLowerCase() &&
-            (videoYearRef.current
-              ? !result.year ||
-                result.year.toLowerCase().includes(videoYearRef.current.toLowerCase()) ||
-                videoYearRef.current.toLowerCase().includes(result.year.toLowerCase())
-              : true) &&
-            (searchType
-              ? (searchType === 'tv' && result.episodes.length > 1) ||
-              (searchType === 'movie' && result.episodes.length === 1)
-              : true)
-        );
+        const filterResults = (list: SearchResult[]) =>
+          list.filter(
+            (result: SearchResult) =>
+              result.title.replaceAll(' ', '').toLowerCase() ===
+              videoTitleRef.current.replaceAll(' ', '').toLowerCase() &&
+              (videoYearRef.current
+                ? !result.year ||
+                  result.year.toLowerCase().includes(videoYearRef.current.toLowerCase()) ||
+                  videoYearRef.current.toLowerCase().includes(result.year.toLowerCase())
+                : true) &&
+              (searchType
+                ? (searchType === 'tv' && result.episodes.length > 1) ||
+                (searchType === 'movie' && result.episodes.length === 1)
+                : true)
+          );
+        let results = filterResults(data.results);
+
+        // 带空格的搜索词在多数采集站命中率骤降(子串匹配对空格敏感)，
+        // 过滤后源过少且词含空格时，用去空格版本重搜一次补全换源列表
+        if (
+          results.length < 3 &&
+          query.replace(/\s/g, '') !== query
+        ) {
+          try {
+            const retryResp = await fetch(
+              `/api/search?q=${encodeURIComponent(query.replace(/\s/g, ''))}`
+            );
+            if (retryResp.ok) {
+              const retryData = await retryResp.json();
+              const seen = new Set(results.map((r) => `${r.source}-${r.id}`));
+              for (const r of filterResults(retryData.results || [])) {
+                const k = `${r.source}-${r.id}`;
+                if (!seen.has(k)) {
+                  seen.add(k);
+                  results.push(r);
+                }
+              }
+            }
+          } catch {
+            // 补搜失败不影响主结果
+          }
+        }
+
         setAvailableSources(results);
         return results;
       } catch (err) {
