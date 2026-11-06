@@ -6,8 +6,8 @@ WORKDIR /app
 # 仅复制依赖清单，提高构建缓存利用率
 COPY package.json package-lock.json ./
 
-# 安装所有依赖（含 devDependencies，后续会裁剪）
-RUN npm ci
+# 安装所有依赖（peer 冲突按 Vercel 同款策略忽略）
+RUN npm install --legacy-peer-deps
 
 # ---- 第 2 阶段：构建项目 ----
 FROM node:20-alpine AS builder
