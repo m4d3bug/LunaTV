@@ -1,20 +1,16 @@
-# ---- 第 1 阶段：安装依赖 ----
+# ---- 第 1 阶段：安装依赖（npm：本仓库使用 package-lock.json）----
 FROM node:20-alpine AS deps
-
-# 启用 corepack 并激活 pnpm（Node20 默认提供 corepack）
-RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
 # 仅复制依赖清单，提高构建缓存利用率
-COPY package.json pnpm-lock.yaml ./
+COPY package.json package-lock.json ./
 
 # 安装所有依赖（含 devDependencies，后续会裁剪）
-RUN pnpm install --frozen-lockfile
+RUN npm ci
 
 # ---- 第 2 阶段：构建项目 ----
 FROM node:20-alpine AS builder
-RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
 # 复制依赖
@@ -25,8 +21,8 @@ COPY . .
 # 在构建阶段也显式设置 DOCKER_ENV，
 ENV DOCKER_ENV=true
 
-# 生成生产构建
-RUN pnpm run build
+# 生成生产构建（等价 pnpm gen:manifest && next build）
+RUN node scripts/generate-manifest.js && npx next build
 
 # ---- 第 3 阶段：生成运行时镜像 ----
 FROM node:20-alpine AS runner
@@ -56,4 +52,4 @@ USER nextjs
 EXPOSE 3000
 
 # 使用自定义启动脚本，先预加载配置再启动服务器
-CMD ["node", "start.js"] 
+CMD ["node", "start.js"]
